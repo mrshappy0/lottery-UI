@@ -2,9 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { Component, OnInit } from '@angular/core';
 import { ethers, BigNumber } from 'ethers';
 import tokenJson from '../../assets/MyToken.json';
-// import ballotJson
-
-// const ERC20VOTES_TOKEN_ADDRESS = '0x324c938062235e86dBF068AC2ede9211fE5f842f';
+import ballotJson from '../../assets/TokenizedBallot.json';
 
 @Component({
   selector: 'app-wallet',
@@ -29,13 +27,16 @@ export class WalletComponent implements OnInit {
     this.tokenBalance = 'pending...';
     this.votePower = 'pending...';
   }
-  
+
   createWallet() {
-    this.provider = ethers.providers.getDefaultProvider('goerli');
+    this.provider = new ethers.providers.AlchemyProvider(
+      'goerli',
+      'replace-me-with-key'
+    );
     this.wallet = ethers.Wallet.createRandom().connect(this.provider);
     this.http
       .get<{ result: string }>('http://localhost:3000/token-address')
-      .subscribe(({result}) => {
+      .subscribe(({ result }) => {
         this.tokenContractAddress = result;
         this.updateBlockChainInfo();
         setInterval(this.updateBlockChainInfo, 1000); // update blockchain every 1 second
@@ -58,31 +59,40 @@ export class WalletComponent implements OnInit {
           this.tokenBalance = parseFloat(
             ethers.utils.formatEther(tokenBalanceBn)
           );
-          console.log(`This fucking thing!!!:::Lclkn${this.tokenBalance}`);
         }
       );
 
       this.tokenContract['getVotes'](this.wallet.address).then(
         (votePowerBn: BigNumber) => {
-          this.votePower = parseFloat(
-            ethers.utils.formatEther(votePowerBn)
-          );
+          this.votePower = parseFloat(ethers.utils.formatEther(votePowerBn));
         }
       );
     }
   }
 
   vote(voteId: string) {
-    // TODO: this.ballotContract['vote'](voteId) **import ballotJson 
+    // TODO: this.ballotContract['vote'](voteId) **import ballotJson
   }
 
-  request() {
-    const reqBody = {address: this.wallet?.address}
+  delegate() {
     this.http
-      .post<{ result: boolean }>('http://localhost:3000/request-tokens', reqBody, )
-      .subscribe(({result}) => {
-        console.log({result})
+      .post<{ result: any }>('http://localhost:3000/delegate-voter', {
+        wallet: this.wallet,
       })
+      .subscribe(({ result }) => (this.votePower = result));
+  }
+
+  requestTokens(tokens: string) {
+    console.log('foerihjweofihew');
+    const reqBody = {
+      address: this.wallet?.address,
+      tokens: ethers.utils.parseEther(tokens),
+    };
+    this.http
+      .post<{ result: any }>('http://localhost:3000/request-tokens', reqBody)
+      .subscribe(({ result }) => {
+        this.tokenBalance = result;
+      });
   }
 
   ngOnInit(): void {}

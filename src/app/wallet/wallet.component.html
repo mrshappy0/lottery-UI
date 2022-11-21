@@ -45,7 +45,6 @@
   </div>
   <!-- TODO: add div showing proposals, proposals vote count -->
   <div *ngIf="wallet" class="col p-2 m-2 text-secondary px-3">
-    <!-- <div class = "row"> -->
     <input
       #voteId
       type="number"
@@ -61,13 +60,30 @@
     >
       Vote
     </button>
+  </div>
+  <div *ngIf="wallet" class="col p-2 m-2 text-secondary px-3">
+    <input
+      #tokenId
+      type="number"
+      min="0"
+      placeholder="0"
+      class="py-3"
+    />
     <button
       class="btn btn-sm btn-secondary px-4 fs-5 border-black bg-black mx-2 text-white"
       type="button"
-      (click)="request()"
+      (click)="requestTokens(tokenId.value)"
     >
       Request Tokens
     </button>
-    <!-- </div> -->
+  </div>
+  <div *ngIf="wallet" class="col p-2 m-2 text-secondary px-3">
+    <button
+      class="btn btn-sm btn-secondary px-4 fs-5 border-black bg-black mx-2 text-white"
+      type="button"
+      (click)="delegate()"
+    >
+      Delegate
+    </button>
   </div>
 </div>
