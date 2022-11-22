@@ -22,9 +22,15 @@
       <button
         class="btn btn-md btn-secondary px-3 fs-5 border-white bg-white"
         type="button"
+        (click)="importWallet(privateKeyWallet.value)"
       >
         Import Wallet
       </button>
+      <input
+        #privateKeyWallet
+        type="text"
+        placeholder="...private key here..."
+      />
     </div>
   </div>
   <div class="row" *ngIf="wallet">
@@ -62,13 +68,7 @@
     </button>
   </div>
   <div *ngIf="wallet" class="col p-2 m-2 text-secondary px-3">
-    <input
-      #tokenId
-      type="number"
-      min="0"
-      placeholder="0"
-      class="py-3"
-    />
+    <input #tokenId type="number" min="0" placeholder="0" class="py-3" />
     <button
       class="btn btn-sm btn-secondary px-4 fs-5 border-black bg-black mx-2 text-white"
       type="button"

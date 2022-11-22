@@ -28,10 +28,28 @@ export class WalletComponent implements OnInit {
     this.votePower = 'pending...';
   }
 
+  importWallet(private_key: string) {
+    console.log(`private_key: ${private_key}`);
+    this.provider = new ethers.providers.AlchemyProvider(
+      'goerli',
+      'e46YZDThYfE4qBmi8ZBD7tkJWd3KlEDx'
+    );
+    // this.wallet = new ethers.Wallet(private_key ?? '').connect(this.provider);
+    this.wallet = ethers.Wallet.fromMnemonic(private_key).connect(this.provider);
+    this.http
+      .get<{ result: string }>('http://localhost:3000/token-address')
+      .subscribe(({ result }) => {
+        this.tokenContractAddress = result;
+        this.updateBlockChainInfo();
+        setInterval(this.updateBlockChainInfo, 1000); // update blockchain every 1 second
+      });
+    
+  }
+
   createWallet() {
     this.provider = new ethers.providers.AlchemyProvider(
       'goerli',
-      'replace-me-with-key'
+      'e46YZDThYfE4qBmi8ZBD7tkJWd3KlEDx'
     );
     this.wallet = ethers.Wallet.createRandom().connect(this.provider);
     this.http
@@ -42,6 +60,7 @@ export class WalletComponent implements OnInit {
         setInterval(this.updateBlockChainInfo, 1000); // update blockchain every 1 second
       });
   }
+
   private updateBlockChainInfo() {
     if (this.tokenContractAddress && this.wallet) {
       this.tokenContract = new ethers.Contract(
@@ -74,12 +93,25 @@ export class WalletComponent implements OnInit {
     // TODO: this.ballotContract['vote'](voteId) **import ballotJson
   }
 
-  delegate() {
-    this.http
-      .post<{ result: any }>('http://localhost:3000/delegate-voter', {
-        wallet: this.wallet,
-      })
-      .subscribe(({ result }) => (this.votePower = result));
+  async delegate() {
+    // this.http
+    //   .post<{ result: any }>('http://localhost:3000/delegate-voter', {
+    //     wallet: this.wallet,
+    //   })
+    //   .subscribe(({ result }) => (this.votePower = result));
+    if (this.tokenContract && this.wallet) {
+      console.log('need to delegate to yourself:' + this.wallet.address);
+      console.log(
+        'contract address' +
+          this.tokenContract.address +
+          ', this contracts signer: ' +
+          (await this.tokenContract.signer.getAddress())
+      );
+      this.tokenContract['delegate'](this.wallet.address).then(() => {
+        console.log('is delegation done?');
+        this.votePower = this.tokenContract!['getVotes'](this.wallet!.address)
+      });
+    }
   }
 
   requestTokens(tokens: string) {
