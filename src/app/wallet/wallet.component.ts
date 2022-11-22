@@ -12,12 +12,10 @@ import ballotJson from '../../assets/TokenizedBallot.json';
 export class WalletComponent implements OnInit {
   wallet: ethers.Wallet | undefined;
   provider: ethers.providers.BaseProvider | undefined;
-
   tokenContractAddress: string | undefined;
-  // ballotContractAddress
-  // ballotContractInstance connected to the wallet
-
+  ballotContractAddress: string | undefined;
   tokenContract: ethers.Contract | undefined;
+  tokenizedBallotContract: ethers.Contract | undefined;
   etherBalance: number | string;
   tokenBalance: number | string;
   votePower: number | string;
@@ -29,46 +27,52 @@ export class WalletComponent implements OnInit {
   }
 
   importWallet(private_key: string) {
-    console.log(`private_key: ${private_key}`);
     this.provider = new ethers.providers.AlchemyProvider(
       'goerli',
-      'e46YZDThYfE4qBmi8ZBD7tkJWd3KlEDx'
+      'api-key'
     );
-    // this.wallet = new ethers.Wallet(private_key ?? '').connect(this.provider);
-    this.wallet = ethers.Wallet.fromMnemonic(private_key).connect(this.provider);
-    this.http
-      .get<{ result: string }>('http://localhost:3000/token-address')
-      .subscribe(({ result }) => {
-        this.tokenContractAddress = result;
-        this.updateBlockChainInfo();
-        setInterval(this.updateBlockChainInfo, 1000); // update blockchain every 1 second
-      });
-    
+    this.wallet = ethers.Wallet.fromMnemonic(private_key).connect(
+      this.provider
+    );
+    this.getTokenAddress();
   }
 
   createWallet() {
     this.provider = new ethers.providers.AlchemyProvider(
       'goerli',
-      'e46YZDThYfE4qBmi8ZBD7tkJWd3KlEDx'
+      'api-key'
     );
     this.wallet = ethers.Wallet.createRandom().connect(this.provider);
+    this.getTokenAddress();
+  }
+
+  private getTokenAddress() {
     this.http
-      .get<{ result: string }>('http://localhost:3000/token-address')
+      .get<{ result: any }>('http://localhost:3000/token-addresses')
       .subscribe(({ result }) => {
-        this.tokenContractAddress = result;
+        this.tokenContractAddress = result.tokenAddr;
+        this.ballotContractAddress = result.tokenizedBallotAddr;
         this.updateBlockChainInfo();
-        setInterval(this.updateBlockChainInfo, 1000); // update blockchain every 1 second
+        setInterval(this.updateBlockChainInfo, 1000);
       });
   }
 
   private updateBlockChainInfo() {
-    if (this.tokenContractAddress && this.wallet) {
+    if (
+      this.tokenContractAddress &&
+      this.wallet &&
+      this.ballotContractAddress
+    ) {
       this.tokenContract = new ethers.Contract(
         this.tokenContractAddress,
         tokenJson.abi,
         this.wallet
       );
-      // this.tokenContract.on("Transfer") // TODO some kind of event emitter when transfers happen on contract??
+      this.tokenizedBallotContract = new ethers.Contract(
+        this.ballotContractAddress,
+        ballotJson.abi,
+        this.wallet
+      );
       this.wallet.getBalance().then((balanceBn) => {
         this.etherBalance = parseFloat(ethers.utils.formatEther(balanceBn));
       });
@@ -89,42 +93,37 @@ export class WalletComponent implements OnInit {
     }
   }
 
-  vote(voteId: string) {
-    // TODO: this.ballotContract['vote'](voteId) **import ballotJson
+  vote(voteId: string, votePower: string) {
+    const voteIdNum = typeof voteId == 'string' ? parseInt(voteId) : voteId;
+    const votePowerNum =
+      typeof votePower == 'string' ? parseInt(votePower) : votePower;
+
+    console.log(`voteIdNum: ${voteIdNum} and typeof: ${typeof voteIdNum}`)
+    console.log(`voteIdNum: ${votePowerNum} and typeof: ${typeof votePowerNum}`)
+    if (this.tokenizedBallotContract) {
+      console.log("thing 1oifjd", this.tokenizedBallotContract['vote'])
+      this.tokenizedBallotContract['vote'](voteIdNum, votePowerNum).then(() => {
+        console.log(`Vote Successfully Cast!!`);
+      });
+    }
   }
 
   async delegate() {
-    // this.http
-    //   .post<{ result: any }>('http://localhost:3000/delegate-voter', {
-    //     wallet: this.wallet,
-    //   })
-    //   .subscribe(({ result }) => (this.votePower = result));
     if (this.tokenContract && this.wallet) {
-      console.log('need to delegate to yourself:' + this.wallet.address);
-      console.log(
-        'contract address' +
-          this.tokenContract.address +
-          ', this contracts signer: ' +
-          (await this.tokenContract.signer.getAddress())
-      );
       this.tokenContract['delegate'](this.wallet.address).then(() => {
-        console.log('is delegation done?');
-        this.votePower = this.tokenContract!['getVotes'](this.wallet!.address)
+        this.votePower = this.tokenContract!['getVotes'](this.wallet!.address);
       });
     }
   }
 
   requestTokens(tokens: string) {
-    console.log('foerihjweofihew');
     const reqBody = {
       address: this.wallet?.address,
       tokens: ethers.utils.parseEther(tokens),
     };
     this.http
       .post<{ result: any }>('http://localhost:3000/request-tokens', reqBody)
-      .subscribe(({ result }) => {
-        this.tokenBalance = result;
-      });
+      .subscribe(({ result }) => (this.tokenBalance = result));
   }
 
   ngOnInit(): void {}
