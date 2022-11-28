@@ -21,13 +21,15 @@ export class WalletComponent implements OnInit {
   votePower: number | string;
   lotteryState: string;
   receiptTxHash: string;
+  walletBalance: number | string;
 
   constructor(private http: HttpClient) {
     this.etherBalance = 'pending...';
     this.tokenBalance = 'pending...';
     this.votePower = 'pending...';
+    this.walletBalance = 'pending...';
     this.lotteryState = 'pending...';
-    this.receiptTxHash = 'pending...'
+    this.receiptTxHash = 'pending...';
   }
 
   importWallet(private_key: string) {
@@ -103,9 +105,11 @@ export class WalletComponent implements OnInit {
   }
 
   async openBets(duration: string) {
-    if(this.provider && this.lotteryContract){
-      const currentBlock = await this.provider.getBlock("latest");
-      const tx = await this.lotteryContract['openBets'](currentBlock.timestamp + Number(duration));
+    if (this.provider && this.lotteryContract) {
+      const currentBlock = await this.provider.getBlock('latest');
+      const tx = await this.lotteryContract['openBets'](
+        currentBlock.timestamp + Number(duration)
+      );
       const receipt = await tx.wait();
       this.receiptTxHash = receipt.transactionHash; // TODO: display in UI
       console.log(`Bets opened (${this.receiptTxHash})`);
@@ -113,15 +117,13 @@ export class WalletComponent implements OnInit {
   }
 
   async displayBalance(index: string) {
-    const balanceBN = await ethers.provider.getBalance(
-      accounts[Number(index)].address
-    );
-    const balance = ethers.utils.formatEther(balanceBN);
-    console.log(
-      `The account of address ${
-        accounts[Number(index)].address
-      } has ${balance} ETH\n`
-    );
+    if (this.provider && this.lotteryContract && this.wallet) {
+      const balanceBN = await this.provider.getBalance(this.wallet.address);
+      this.walletBalance = ethers.utils.formatEther(balanceBN);
+      console.log(
+        `The account of address ${this.wallet.address} has ${this.walletBalance} ETH\n`
+      );
+    }
   }
 
   async buyTokens(index: string, amount: string) {
