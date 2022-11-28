@@ -20,12 +20,14 @@ export class WalletComponent implements OnInit {
   tokenBalance: number | string;
   votePower: number | string;
   lotteryState: string;
+  receiptTxHash: string;
 
   constructor(private http: HttpClient) {
     this.etherBalance = 'pending...';
     this.tokenBalance = 'pending...';
     this.votePower = 'pending...';
     this.lotteryState = 'pending...';
+    this.receiptTxHash = 'pending...'
   }
 
   importWallet(private_key: string) {
@@ -71,19 +73,6 @@ export class WalletComponent implements OnInit {
         this.wallet
       );
 
-      // const contractFactory = await ethers.getContractFactory("Lottery");
-      // contract = await contractFactory.deploy(
-      //   "LotteryToken",
-      //   "LT0",
-      //   TOKEN_RATIO,
-      //   ethers.utils.parseEther(BET_PRICE.toFixed(18)),
-      //   ethers.utils.parseEther(BET_FEE.toFixed(18))
-      // );
-      // await contract.deployed();
-      // const tokenAddress = await contract.paymentToken();
-      // const tokenFactory = await ethers.getContractFactory("LotteryToken");
-      // token = tokenFactory.attach(tokenAddress);
-
       this.wallet.getBalance().then((balanceBn) => {
         this.etherBalance = parseFloat(ethers.utils.formatEther(balanceBn));
       });
@@ -106,7 +95,7 @@ export class WalletComponent implements OnInit {
 
   async checkState() {
     if (this.lotteryContract) {
-      this.lotteryState = (await this.lotteryContract['betsOpen'])
+      this.lotteryState = (await this.lotteryContract['betsOpen']) // TODO: display in UI
         ? 'open'
         : 'closed';
       console.log(`The lottery is ${this.lotteryState}\n`);
@@ -114,22 +103,25 @@ export class WalletComponent implements OnInit {
   }
 
   async openBets(duration: string) {
-    // const currentBlock = await ethers.provider.getBlock("latest");
-    // const tx = await contract.openBets(currentBlock.timestamp + Number(duration));
-    // const receipt = await tx.wait();
-    // console.log(`Bets opened (${receipt.transactionHash})`);
+    if(this.provider && this.lotteryContract){
+      const currentBlock = await this.provider.getBlock("latest");
+      const tx = await this.lotteryContract['openBets'](currentBlock.timestamp + Number(duration));
+      const receipt = await tx.wait();
+      this.receiptTxHash = receipt.transactionHash; // TODO: display in UI
+      console.log(`Bets opened (${this.receiptTxHash})`);
+    }
   }
 
   async displayBalance(index: string) {
-    // const balanceBN = await ethers.provider.getBalance(
-    //   accounts[Number(index)].address
-    // );
-    // const balance = ethers.utils.formatEther(balanceBN);
-    // console.log(
-    //   `The account of address ${
-    //     accounts[Number(index)].address
-    //   } has ${balance} ETH\n`
-    // );
+    const balanceBN = await ethers.provider.getBalance(
+      accounts[Number(index)].address
+    );
+    const balance = ethers.utils.formatEther(balanceBN);
+    console.log(
+      `The account of address ${
+        accounts[Number(index)].address
+      } has ${balance} ETH\n`
+    );
   }
 
   async buyTokens(index: string, amount: string) {
