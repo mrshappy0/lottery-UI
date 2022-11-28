@@ -6,14 +6,14 @@ import { HttpClientModule } from "@angular/common/http";
 import { AppRoutingModule } from './app-routing.module';
 import { AppComponent } from './app.component';
 import { PageNotFoundComponent } from './page-not-found/page-not-found.component';
-import { TokenizedBallotLandingPageComponent } from './tokenized-ballot-landing-page/tokenized-ballot-landing-page.component';
+import { LotteryLandingPageComponent } from './lottery-landing-page/lottery-landing-page.component';
 import { WalletComponent } from './wallet/wallet.component';
 
 @NgModule({
   declarations: [
     AppComponent,
     PageNotFoundComponent,
-    TokenizedBallotLandingPageComponent,
+    LotteryLandingPageComponent,
     WalletComponent
   ],
   imports: [
