@@ -4,6 +4,15 @@ import { ethers, BigNumber } from 'ethers';
 import tokenJson from '../../assets/LotteryToken.json';
 import lotteryJson from '../../assets/Lottery.json';
 
+const BET_PRICE = 1;
+const BET_FEE = 0.2;
+const TOKEN_RATIO = 1;
+
+interface TransactionReceipt {
+  transactionIndex: number;
+  transactionHash: string;
+}
+
 @Component({
   selector: 'app-wallet',
   templateUrl: './wallet.component.html',
@@ -20,8 +29,11 @@ export class WalletComponent implements OnInit {
   tokenBalance: number | string;
   votePower: number | string;
   lotteryState: string;
-  receiptTxHash: string;
+  receipts: TransactionReceipt[];
   walletBalance: number | string;
+  errors: Error[];
+  prize: string;
+  ownerPoolBalance: string;
 
   constructor(private http: HttpClient) {
     this.etherBalance = 'pending...';
@@ -29,7 +41,10 @@ export class WalletComponent implements OnInit {
     this.votePower = 'pending...';
     this.walletBalance = 'pending...';
     this.lotteryState = 'pending...';
-    this.receiptTxHash = 'pending...';
+    this.receipts = [];
+    this.errors = [];
+    this.prize = 'pending...';
+    this.ownerPoolBalance = '0';
   }
 
   importWallet(private_key: string) {
@@ -95,6 +110,10 @@ export class WalletComponent implements OnInit {
     }
   }
 
+  createTxReceiptLog = ({ transactionIndex, transactionHash }: any) => {
+    return { transactionIndex, transactionHash };
+  };
+
   async checkState() {
     if (this.lotteryContract) {
       this.lotteryState = (await this.lotteryContract['betsOpen']) // TODO: display in UI
@@ -110,14 +129,14 @@ export class WalletComponent implements OnInit {
       const tx = await this.lotteryContract['openBets'](
         currentBlock.timestamp + Number(duration)
       );
-      const receipt = await tx.wait();
-      this.receiptTxHash = receipt.transactionHash; // TODO: display in UI
-      console.log(`Bets opened (${this.receiptTxHash})`);
+      const TxReceiptLog = this.createTxReceiptLog(await tx.wait());
+      this.receipts.push(TxReceiptLog); // TODO: display in UI
+      console.log(`Bets opened (${JSON.stringify(TxReceiptLog)})`);
     }
   }
 
-  async displayBalance(index: string) {
-    if (this.provider && this.lotteryContract && this.wallet) {
+  async displayBalance() {
+    if (this.provider && this.wallet) {
       const balanceBN = await this.provider.getBalance(this.wallet.address);
       this.walletBalance = ethers.utils.formatEther(balanceBN);
       console.log(
@@ -126,84 +145,160 @@ export class WalletComponent implements OnInit {
     }
   }
 
-  async buyTokens(index: string, amount: string) {
-    //   const tx = await contract.connect(accounts[Number(index)]).purchaseTokens({
-    //     value: ethers.utils.parseEther(amount).div(TOKEN_RATIO),
-    //   });
-    //   const receipt = await tx.wait();
-    //   console.log(`Tokens bought (${receipt.transactionHash})\n`);
+  async buyTokens(amount: string) {
+    if (this.provider && this.lotteryContract && this.wallet) {
+      const tx = await this.lotteryContract
+        .connect(this.wallet)
+        ['purchaseTokens']({
+          value: ethers.utils.parseEther(amount).div(TOKEN_RATIO),
+        });
+      const txReceiptLog = this.createTxReceiptLog(await tx.wait());
+      this.receipts.push(txReceiptLog);
+      console.log(`Tokens bought (${txReceiptLog})\n`);
+    }
   }
 
-  async displayTokenBalance(index: string) {
-    // const balanceBN = await token.balanceOf(accounts[Number(index)].address);
-    // const balance = ethers.utils.formatEther(balanceBN);
-    // console.log(
-    //   `The account of address ${
-    //     accounts[Number(index)].address
-    //   } has ${balance} LT0\n`
-    // );
+  async displayTokenBalance() {
+    if (!this.tokenContract)
+      this.errors.push(
+        new Error('displayTokenBalance: Token Contract not initialized')
+      );
+
+    if (!this.wallet)
+      this.errors.push(new Error('displayTokenBalance: No Wallet exists!'));
+
+    if (this.wallet && this.tokenContract) {
+      const balanceBN = await this.tokenContract['balanceOf'](
+        this.wallet.address
+      );
+      this.tokenBalance = ethers.utils.formatEther(balanceBN);
+      console.log(
+        `The account of address ${this.wallet.address} has ${this.tokenBalance} LT0\n`
+      );
+    }
   }
 
-  async bet(index: string, amount: string) {
-    //   const allowTx = await token
-    //   .connect(accounts[Number(index)])
-    //   .approve(contract.address, ethers.constants.MaxUint256);
-    // await allowTx.wait();
-    // const tx = await contract.connect(accounts[Number(index)]).betMany(amount);
-    // const receipt = await tx.wait();
-    // console.log(`Bets placed (${receipt.transactionHash})\n`);
+  async bet(amount: string) {
+    if (!this.tokenContract)
+      this.errors.push(new Error('bet: Token Contract not initialized'));
+    if (!this.lotteryContract)
+      this.errors.push(new Error('bet: Lottery Contract not initialized!'));
+    if (!this.wallet) this.errors.push(new Error('bet: No Wallet exists!'));
+
+    if (this.wallet && this.tokenContract && this.lotteryContract) {
+      const allowTx = await this.tokenContract
+        .connect(this.wallet)
+        ['approve'](this.lotteryContractAddress, ethers.constants.MaxUint256);
+      await allowTx.wait();
+      const tx = await this.lotteryContract
+        .connect(this.wallet)
+        ['betMany'](amount);
+      const txReceiptLog = this.createTxReceiptLog(await tx.wait());
+      this.receipts.push(txReceiptLog);
+      console.log(`Bets placed (${txReceiptLog})\n`);
+    }
   }
 
   async closeLottery() {
-    // const tx = await contract.closeLottery();
-    // const receipt = await tx.wait();
-    // console.log(`Bets closed (${receipt.transactionHash})\n`);
+    if (!this.tokenContract)
+      this.errors.push(
+        new Error('closeLottery: Token Contract not initialized')
+      );
+    if (!this.lotteryContract)
+      this.errors.push(
+        new Error('closeLottery: Lottery Contract not initialized!')
+      );
+    if (this.tokenContract && this.lotteryContract) {
+      const tx = await this.lotteryContract['closeLottery']();
+      const txReceiptLog = this.createTxReceiptLog(await tx.wait());
+      this.receipts.push(txReceiptLog);
+      console.log(`Bets closed (${txReceiptLog})\n`);
+    }
   }
 
-  async displayPrize(index: string) {
-    // const prizeBN = await contract.prize(accounts[Number(index)].address);
-    // const prize = ethers.utils.formatEther(prizeBN);
-    // console.log(
-    //   `The account of address ${
-    //     accounts[Number(index)].address
-    //   } has earned a prize of ${prize} Tokens\n`
-    // );
-    // return prize;
+  async displayPrize() {
+    if (!this.lotteryContract)
+      this.errors.push(
+        new Error('displayPrize: Lottery Contract not initialized!')
+      );
+    if (!this.wallet)
+      this.errors.push(new Error('displayPrize: No Wallet exists!'));
+    if (this.wallet && this.lotteryContract) {
+      const prizeBN = await this.lotteryContract['prize'](this.wallet.address);
+      this.prize = ethers.utils.formatEther(prizeBN);
+      console.log(
+        `The account of address ${this.wallet.address} has earned a prize of ${this.prize} Tokens\n`
+      );
+    }
   }
 
-  async claimPrize(index: string, amount: string) {
-    //   const tx = await contract
-    //   .connect(accounts[Number(index)])
-    //   .prizeWithdraw(ethers.utils.parseEther(amount));
-    // const receipt = await tx.wait();
-    // console.log(`Prize claimed (${receipt.transactionHash})\n`);
+  async claimPrize(amount: string) {
+    if (!this.lotteryContract)
+      this.errors.push(
+        new Error('claimPrize: Lottery Contract not initialized!')
+      );
+    if (!this.wallet)
+      this.errors.push(new Error('claimPrize: No Wallet exists!'));
+    if (this.wallet && this.lotteryContract) {
+      const tx = await this.lotteryContract
+        .connect(this.wallet)
+        ['prizeWithdraw'](ethers.utils.parseEther(amount));
+      const txReceiptLog = this.createTxReceiptLog(await tx.wait());
+      this.receipts.push(txReceiptLog);
+      console.log(`Prize claimed (${txReceiptLog})\n`);
+    }
   }
 
   async displayOwnerPool() {
-    // const balanceBN = await contract.ownerPool();
-    // const balance = ethers.utils.formatEther(balanceBN);
-    // console.log(`The owner pool has (${balance}) Tokens \n`);
+    if (!this.lotteryContract)
+      this.errors.push(
+        new Error('displayOwnerPool: Lottery Contract not initialized!')
+      );
+    if (this.lotteryContract) {
+      const balanceBN = await this.lotteryContract['ownerPool']();
+      this.ownerPoolBalance = ethers.utils.formatEther(balanceBN);
+      console.log(`The owner pool has (${this.ownerPoolBalance}) Tokens \n`);
+    }
   }
 
   async withdrawTokens(amount: string) {
-    // const tx = await contract.ownerWithdraw(ethers.utils.parseEther(amount));
-    // const receipt = await tx.wait();
-    // console.log(`Withdraw confirmed (${receipt.transactionHash})\n`);
+    if (!this.lotteryContract)
+      this.errors.push(
+        new Error('withdrawTokens: Lottery Contract not initialized!')
+      );
+    if (this.lotteryContract) {
+      const tx = await this.lotteryContract['ownerWithdraw'](
+        ethers.utils.parseEther(amount)
+      );
+      const txReceiptLog = this.createTxReceiptLog(await tx.wait());
+      this.receipts.push(txReceiptLog);
+      console.log(`Withdraw confirmed (${txReceiptLog})\n`);
+    }
   }
 
-  async burnTokens(index: string, amount: string) {
-    //   const allowTx = await token
-    //   .connect(accounts[Number(index)])
-    //   .approve(contract.address, ethers.constants.MaxUint256);
-    // const receiptAllow = await allowTx.wait();
-    // console.log(`Allowance confirmed (${receiptAllow.transactionHash})\n`);
-    // const tx = await contract
-    //   .connect(accounts[Number(index)])
-    //   .returnTokens(ethers.utils.parseEther(amount));
-    // const receipt = await tx.wait();
-    // console.log(`Burn confirmed (${receipt.transactionHash})\n`);
-  }
+  async burnTokens(amount: string) {
+    if (!this.tokenContract)
+      this.errors.push(new Error('bet: Token Contract not initialized'));
+    if (!this.lotteryContract)
+      this.errors.push(new Error('bet: Lottery Contract not initialized!'));
+    if (!this.wallet) this.errors.push(new Error('bet: No Wallet exists!'));
 
+    if (this.wallet && this.tokenContract && this.lotteryContract) {
+      const allowTx = await this.tokenContract
+        .connect(this.wallet)
+        ['approve'](this.lotteryContractAddress, ethers.constants.MaxUint256);
+      const allowTxReceiptLog = this.createTxReceiptLog(await allowTx.wait());
+      this.receipts.push(allowTxReceiptLog);
+      console.log(`Allowance confirmed (${allowTxReceiptLog})\n`);
+      const returnTx = await this.lotteryContract
+        .connect(this.wallet)
+        ['returnTokens'](ethers.utils.parseEther(amount));
+      // const receipt = await returnTx.wait();
+      const returnTxReceiptLog = this.createTxReceiptLog(await returnTx.wait());
+      this.receipts.push(returnTxReceiptLog);
+      console.log(`Burn confirmed (${returnTxReceiptLog})\n`);
+    }
+  }
   // vote(voteId: string, votePower: string) {
   //   const voteIdNum = typeof voteId == 'string' ? parseInt(voteId) : voteId;
   //   const votePowerNum =
